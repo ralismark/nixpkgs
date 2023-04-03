@@ -42,20 +42,16 @@ in
     location = {
 
       latitude = mkOption {
-        type = types.float;
+        type = types.numbers.betwen (-90) 90;
         description = lib.mdDoc ''
-          Your current latitude, between
-          `-90.0` and `90.0`. Must be provided
-          along with longitude.
+          Your current latitude, if `provider = "manual"`. Must be provided along with longitude.
         '';
       };
 
       longitude = mkOption {
-        type = types.float;
+        type = types.numbers.between (-180) 180;
         description = lib.mdDoc ''
-          Your current longitude, between
-          between `-180.0` and `180.0`. Must be
-          provided along with latitude.
+          Your current longitude, if `provider = "manual"`. Must be provided along with latitude.
         '';
       };
 

@@ -1,4 +1,4 @@
-{ config, lib, pkgs, ... }:
+{ config, options, lib, pkgs, ... }:
 
 with lib;
 
@@ -55,9 +55,10 @@ in
         '';
       };
 
+      # no default -- we don't want to pick a default for the user if something
+      # needs location services
       provider = mkOption {
         type = types.enum [ "manual" "geoclue2" ];
-        default = "manual";
         description = lib.mdDoc ''
           The location provider to use for determining your location. If set to
           `manual` you must also provide latitude/longitude.
@@ -67,23 +68,37 @@ in
     };
   };
 
-  config = {
+  config = mkMerge [
+    {
+      environment.sessionVariables.TZDIR = "/etc/zoneinfo";
 
-    environment.sessionVariables.TZDIR = "/etc/zoneinfo";
+      # This way services are restarted when tzdata changes.
+      systemd.globalEnvironment.TZDIR = tzdir;
 
-    services.geoclue2.enable = mkIf (lcfg.provider == "geoclue2") true;
+      systemd.services.systemd-timedated.environment = lib.optionalAttrs (config.time.timeZone != null) { NIXOS_STATIC_TIMEZONE = "1"; };
 
-    # This way services are restarted when tzdata changes.
-    systemd.globalEnvironment.TZDIR = tzdir;
+      environment.etc = {
+        zoneinfo.source = tzdir;
+      } // lib.optionalAttrs (config.time.timeZone != null) {
+          localtime.source = "/etc/zoneinfo/${config.time.timeZone}";
+          localtime.mode = "direct-symlink";
+        };
+    }
 
-    systemd.services.systemd-timedated.environment = lib.optionalAttrs (config.time.timeZone != null) { NIXOS_STATIC_TIMEZONE = "1"; };
+    (mkIf (options.location.provider.isDefined) {
+      assertions = [
+        {
+          assertion = lcfg.provider == "manual" -> options.location.latitude.isDefined;
+          message = "<option>location.latitude</option> must be set when location.provider is manual";
+        }
+        {
+          assertion = lcfg.provider == "manual" -> options.location.longitude.isDefined;
+          message = "<option>location.longitude</option> must be set when location.provider is manual";
+        }
+      ];
 
-    environment.etc = {
-      zoneinfo.source = tzdir;
-    } // lib.optionalAttrs (config.time.timeZone != null) {
-        localtime.source = "/etc/zoneinfo/${config.time.timeZone}";
-        localtime.mode = "direct-symlink";
-      };
-  };
+      services.geoclue.enable = mkIf (lcfg.provider == "geoclue2") true;
+    })
+  ];
 
 }
